@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Main Page -->
+<h1>Saved Cities</h1>
+<p style="opacity:.8">Cities are stored locally in your browser.</p>
+
+<div id="saved-root" style="margin-top:1rem;">
+  <div id="saved-grid" style="
+    display:grid; gap:1rem;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  "></div>
+
+  <!-- Shown when there are no saved cities -->
+  <div id="saved-empty" style="display:none; text-align:center; opacity:.75; margin-top:1.5rem;">
+    No saved cities yet.
+  </div>
+</div>
+
+
+<!-- SCRIPTS!!! -->
+<script>
+(() => {
+  const STORAGE_KEY = "savedCities";
+  function loadRaw() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
+    catch { return []; }
+  }
+
+  // Raw read from localStorage
+  function isValid(city) {
+    return city
+      && typeof city.name === "string"
+      && city.name.trim().length > 0
+      && Number.isFinite(Number(city.lat))
+      && Number.isFinite(Number(city.lon));
+  }
+
+  // Deduplicate + coerce types + trim names
+  function sanitize(list) {
+    const seen = new Set();
+    const out = [];
+    for (const c of list) {
+      if (!isValid(c)) continue;
+      const key = `${Number(c.lat).toFixed(4)}|${Number(c.lon).toFixed(4)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ name: c.name.trim(), lat: Number(c.lat), lon: Number(c.lon) });
+    }
+    return out;
+  }
+
+  // Read saved list
+  function getSaved() {
+    const clean = sanitize(loadRaw());
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+    return clean;
+  }
+
+  // Write sanitized list
+  function setSaved(list) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitize(list)));
+  }
+
+  // Remove a city
+  function removeCity(lat, lon) {
+    const tgtLat = Number(lat), tgtLon = Number(lon);
+    const list = getSaved().filter(c => !(Number(c.lat) === tgtLat && Number(c.lon) === tgtLon));
+    setSaved(list);
+  }
+
+  async function fetchCurrent(lat, lon) {
+    const url = `/api/weather/current?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+    const r = await fetch(url, { headers: { "Accept": "application/json" } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const payload = await r.json();
+    return payload?.data ?? payload;
+  }
+
+  const grid  = document.getElementById("saved-grid");
+  const empty = document.getElementById("saved-empty");
+
+  function renderEmptyState(show) {
+    empty.style.display = show ? "block" : "none";
+    if (show) grid.innerHTML = "";
+  }
+
+  function makeCard(city, data) {
+    const name = city.name || "Unnamed City";
+    const temp = Number(data?.temp ?? data?.temp_c ?? data?.temperature_c ?? data?.main?.temp);
+    const desc = data?.description ?? data?.condition ?? data?.weather?.description ?? "—";
+    const icon = data?.icon ?? data?.weather?.icon ?? null;
+
+    const card = document.createElement("div");
+    card.className = "card";
+    card.style.padding = "1rem";
+    card.style.borderRadius = "12px";
+    card.style.background = "rgba(255,255,255,0.08)";
+    card.style.backdropFilter = "blur(4px)";
+    card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+
+    const tempStr = Number.isFinite(temp) ? `${temp.toFixed(1)} °C` : "—";
+
+    // Card content:
+    card.innerHTML = `
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:.75rem;">
+        <div style="min-width:0;">
+          <div style="font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${name}</div>
+          <div style="opacity:.85; text-transform:capitalize; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${desc}</div>
+          <div style="margin-top:.25rem; font-size:1.1rem;"><strong>${tempStr}</strong></div>
+        </div>
+        <div>${icon ? `<img src="https://openweathermap.org/img/wn/${icon}@2x.png" alt="" width="64" height="64" decoding="async">` : ""}</div>
+      </div>
+
+      <div style="display:flex; gap:.5rem; margin-top:.75rem;">
+        <a class="btn open-btn" data-lat="${city.lat}" data-lon="${city.lon}" data-name="${encodeURIComponent(name)}">Open</a>
+        <button class="btn btn-danger remove-btn" data-lat="${city.lat}" data-lon="${city.lon}">Remove</button>
+      </div>
+    `;
+    return card;
+  }
+
+  async function renderSaved() {
+    const cities = getSaved();
+    if (!cities.length) { renderEmptyState(true); return; }
+    renderEmptyState(false);
+    grid.innerHTML = "";
+
+    for (const c of cities) {
+      let data = null;
+      try { data = await fetchCurrent(c.lat, c.lon); } catch { /* dejamos sin datos */ }
+      grid.appendChild(makeCard(c, data));
+    }
+
+    // Remove
+    grid.querySelectorAll(".remove-btn").forEach(btn => {
+      btn.addEventListener("click", (ev) => {
+        const lat = ev.currentTarget.getAttribute("data-lat");
+        const lon = ev.currentTarget.getAttribute("data-lon");
+        removeCity(lat, lon);
+        renderSaved();
+      });
+    });
+
+    grid.querySelectorAll(".open-btn").forEach(a => {
+      a.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        const lat = ev.currentTarget.getAttribute("data-lat");
+        const lon = ev.currentTarget.getAttribute("data-lon");
+        const name = ev.currentTarget.getAttribute("data-name");
+        window.location.href = `/city/?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&name=${name}`;
+      });
+    });
+  }
+
+  renderSaved();
+})();
+</script>
+
+
+{% endblock %}

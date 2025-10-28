@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block content %}
+
+
+<!-- Main Page -->
+<h1 id="city-title">
+  {{ city.name }}{% if city.state %}, {{ city.state }}{% endif %}{% if city.country %}, {{ city.country }}{% endif %}
+</h1>
+
+<!-- Current Weather -->
+<section class="section grid" id="city"
+         data-lat="{{ city.lat|floatformat:4 }}"
+         data-lon="{{ city.lon|floatformat:4 }}">
+         
+  <div class="card" style="text-align:center;">
+    <h3 style="margin-top:0;">Current Weather</h3>
+
+    <!-- Loading message -->
+    <div id="weather-status" class="subtle">loading..</div>
+    <div id="weather-content" style="display:none; margin-top:.5rem">
+
+      <!-- Weather description -->
+      <div>
+        <img id="weather-icon" alt="Weather icon"
+            width="80" height="80"
+            style="display:none; margin-bottom:.5rem;">
+        <div id="weather-desc"
+            style="font-size:1.4rem; font-weight:600; margin-bottom:.5rem;">
+        </div>
+      </div>
+
+      <div id="w-temp"
+          style="font-size:2.2rem; font-weight:700; margin-bottom:.25rem;">
+      </div>
+      <div style="margin-bottom:1rem;">
+        (Feels Like: <span id="w-feels"></span>°C)
+      </div>
+
+      <div>Humidity: <span id="w-hum"></span>%</div>
+      <div>Wind: <span id="w-wind"></span> m/s</div>
+      <div>Precipitation: <span id="w-precip"></span> mm</div>
+    </div>
+
+    <button id="save-btn" type="button" class="btn" style="margin-top:1rem" 
+      aria-label="Save city" aria-pressed="false">
+      Save
+    </button>
+  </div>
+</section>
+
+<!-- Forecast Section -->
+<section id="city"
+  data-lat="{% if city.lat is not None %}{{ city.lat|floatformat:4 }}{% endif %}"
+  data-lon="{% if city.lon is not None %}{{ city.lon|floatformat:4 }}{% endif %}"
+  data-name="{{ city.name }}"
+  data-state="{{ city.state|default_if_none:'' }}"
+  data-country="{{ city.country|default_if_none:'' }}">
+
+  <section style="margin-top:1rem;">
+    <h2 style="margin:0 0 .5rem 0;">Forecast</h2>
+    <div id="forecast-cards" style="
+        display:grid; 
+        gap:1rem; 
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      ">
+    </div>
+  </section>
+</section>
+
+
+<!-- SCRIPTS!!! -->
+<!-- Current Weather -->
+<script>
+  // city coordinates (data-lat / data-lon)
+(async () => {
+  const container = document.getElementById('city');
+  const lat = container?.dataset?.lat;
+  const lon = container?.dataset?.lon;
+
+  const statusBox = document.getElementById('weather-status');
+  const contentBox = document.getElementById('weather-content');
+
+  // Weather detail fields
+  const descEl   = document.getElementById('weather-desc');
+  const iconEl   = document.getElementById('weather-icon');
+  const tempEl   = document.getElementById('w-temp');
+  const feelsEl  = document.getElementById('w-feels');
+  const humEl    = document.getElementById('w-hum');
+  const windEl   = document.getElementById('w-wind');
+  const precipEl = document.getElementById('w-precip');
+
+  if (!lat || !lon) { statusBox.textContent = 'No hay coordenadas para esta ciudad.'; return; }
+
+  try {
+    const res = await fetch(`/api/weather/current?lat=${lat}&lon=${lon}`, {
+      headers: { "Accept": "application/json" }
+    });
+
+    if (!res.ok) {
+      let detail = 'No se pudo cargar el clima.';
+      try { detail = (await res.json()).detail || detail; } catch {}
+      statusBox.textContent = detail;
+      return;
+    }
+
+    // Normalize payload 
+    const payload = await res.json();
+    const d = payload?.data ?? payload; 
+    const temp  = Number(d.temp_c ?? d.temp ?? d.temperature_c ?? d.main?.temp);
+    const feels = Number(d.feels_like_c ?? d.feels_like ?? d.main?.feels_like);
+    const humidity = d.humidity_pct ?? d.humidity ?? null;
+    const wind     = d.wind_ms ?? d.wind_speed ?? null;
+    const precip   = d.precip_mm ?? d.rain_mm ?? 0;
+    const cond     = d.description ?? d.condition ?? d.weather?.description ?? '—';
+    const icon     = d.icon ?? d.weather?.icon ?? null;
+
+    // Populate UI fields
+    descEl.textContent  = cond;
+    tempEl.textContent  = Number.isFinite(temp)  ? `${temp.toFixed(1)} \u00B0C` : '—';
+    feelsEl.textContent = Number.isFinite(feels) ? feels.toFixed(1) : '—';
+    humEl.textContent   = humidity ?? '—';
+    windEl.textContent  = wind != null ? Number(wind).toFixed(1) : '—';
+    precipEl.textContent= Number(precip || 0).toFixed(1);
+
+    if (icon) { iconEl.src = `https://openweathermap.org/img/wn/${icon}@2x.png`; iconEl.style.display = 'inline'; }
+
+    statusBox.style.display = 'none';
+    contentBox.style.display = 'block';
+  } catch (err) {
+    console.error(err);
+    statusBox.textContent = 'Error de red. Intenta más tarde.';
+  }
+})();
+</script>
+
+<!-- Week Forecast -->
+<script>
+  // Read coordinates from the city container
+  function getCityCoords() {
+    const el = document.getElementById("city");
+    return { lat: el?.dataset?.lat, lon: el?.dataset?.lon };
+  }
+
+  // Fetch 7-day forecast
+  async function loadForecast(lat, lon) {
+    const url = `/api/weather/forecast?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("No se pudo obtener el pronóstico");
+    const payload = await r.json();
+    return payload?.data?.days ?? [];
+  }
+
+  function iconUrl(icon) {
+    return icon ? `https://openweathermap.org/img/wn/${icon}@2x.png` : "";
+  }
+
+  function formatDateIsoToES(isoDate) {
+    const d = new Date(isoDate + "T00:00:00Z");
+    return d.toLocaleDateString("en", { weekday: "short", day: "2-digit", month: "short" });
+  }
+
+  // Render forecast as small cards
+  function renderForecast(days) {
+    const root = document.getElementById("forecast-cards");
+    root.innerHTML = "";
+
+    days.slice(1, 8).forEach(d => {
+      const card = document.createElement("div");
+      card.style.padding = "0.75rem";
+      card.style.borderRadius = "12px";
+      card.style.background = "rgba(255,255,255,0.08)";
+      card.style.backdropFilter = "blur(4px)";
+      card.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+
+      const maxStr = (d.max != null) ? `${Number(d.max).toFixed(1)} °C` : "—";
+      const minStr = (d.min != null) ? `${Number(d.min).toFixed(1)} °C` : "—";
+      const dateStr = d.date ? formatDateIsoToES(d.date) : "—";
+      const icon = d.icon ? iconUrl(d.icon) : "";
+
+      card.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div>
+            <div style="font-weight:600; text-transform:capitalize">${dateStr}</div>
+            <div style="opacity:.85; font-size:.9rem;">
+              <strong>${maxStr}</strong> - ${minStr}
+            </div>
+          </div>
+          ${icon ? `<img alt="" src="${icon}" width="58" height="58" decoding="async">` : ""}
+        </div>
+      `;
+      root.appendChild(card);
+    });
+  }
+
+  // Bootstrap
+  (async () => {
+    try {
+      const { lat, lon } = getCityCoords();
+      if (!lat || !lon) {
+        document.getElementById("forecast-cards").textContent = "Sin coordenadas para pronóstico.";
+        return;
+      }
+      const days = await loadForecast(lat, lon);
+      if (!days.length) {
+        document.getElementById("forecast-cards").textContent = "Sin datos de pronóstico.";
+        return;
+      }
+      renderForecast(days);
+    } catch (err) {
+      console.error(err);
+      document.getElementById("forecast-cards").textContent = "No se pudo cargar el pronóstico.";
+    }
+  })();
+</script>
+
+<!-- Save Button -->
+<script>
+(function () {
+  const STORAGE_KEY = "savedCities";
+  const PRECISION = 4; 
+  const round = (n) => Number.parseFloat(n).toFixed(PRECISION);
+
+  // Read saved cities from localStorage
+  function getSaved() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); }
+    catch { return []; }
+  }
+
+  // Persist list in localStorage
+  function setSaved(list) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+
+  // Compare two city coordinate pairs with rounding
+  function sameCoords(a, b) {
+    return round(a.lat) === round(b.lat) && round(a.lon) === round(b.lon);
+  }
+
+  // Check if a city is already saved
+  function isSaved(lat, lon) {
+    const target = { lat: Number(lat), lon: Number(lon) };
+    return getSaved().some(c => sameCoords(c, target));
+  }
+
+  // Add city to saved list (name + coords only)
+  function addSaved(city) {
+    const list = getSaved();
+    if (!list.some(c => sameCoords(c, city))) {
+      list.push({ name: city.name, lat: Number(city.lat), lon: Number(city.lon) });
+      setSaved(list);
+    }
+  }
+
+  // Remove city from saved list by coordinates
+  function removeSaved(lat, lon) {
+    const target = { lat: Number(lat), lon: Number(lon) };
+    const list = getSaved().filter(c => !sameCoords(c, target));
+    setSaved(list);
+  }
+
+// Button + context elements
+  const btn   = document.getElementById("save-btn");
+  const city  = document.getElementById("city");
+  const title = document.getElementById("city-title");
+
+  if (!btn || !city) return;
+
+  const lat = city.dataset.lat;
+  const lon = city.dataset.lon;
+  const name = (title?.textContent || "").trim() || "Unknown";
+
+  function refreshBtn() {
+    const saved = isSaved(lat, lon);
+    btn.textContent = saved ? "Remove ★" : "Save ★";
+    btn.setAttribute("aria-pressed", String(saved));
+    btn.setAttribute("aria-label", saved ? "Remove city from saved" : "Save city");
+  }
+
+  btn.addEventListener("click", () => {
+    if (isSaved(lat, lon)) {
+      removeSaved(lat, lon);
+    } else {
+      addSaved({ name, lat, lon });
+    }
+    refreshBtn();
+  });
+
+  refreshBtn();
+})();
+</script>
+
+
+{% endblock %}
+

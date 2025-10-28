@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Styles -->
+<style>
+    ul {
+        list-style-type: none; 
+        padding: 0;           
+        margin: 0 auto;      
+        text-align: center;  
+    }
+    li {
+        margin: 0.5rem 0;
+    }
+    a {
+      color: #d7d7d7;      
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    a:hover {
+        color: #1391eb;     
+        text-decoration: underline;
+    }
+</style>
+
+<!-- Main page -->
+<h1>Check the weather</h1>
+
+<section class="section">
+  <div class="card subtle" id="search-status" aria-live="polite">
+    Enter a city name in the search field above.
+  </div>
+</section>
+
+<!-- Search / Results -->
+<section id="search-results" style="margin-top:1.5rem;">
+  <h2 style="margin:0 0 .5rem 0;">Search Results</h2>
+  <div id="results-container" style="display:grid; gap:.75rem;"></div>
+  <div id="results-empty" style="display:none; opacity:.75;">No results.</div>
+  <div id="results-error" style="display:none; color:#e66;">There was an error searching. Try again.</div>
+</section>
+
+<!-- SCRIPTS!!!! -->
+<script>
+(function(){
+  // If the page was opened with ?q=..., run search automaticall
+  const params = new URLSearchParams(window.location.search);
+  const q = (params.get("q") || "").trim();
+  if (!q) {
+    return;
+  }
+
+  const root  = document.getElementById("results-container");
+  const empty = document.getElementById("results-empty");
+  const error = document.getElementById("results-error");
+
+  // Toggle visibility helpers
+  function showEmpty(show){ empty.style.display = show ? "block" : "none"; }
+  function showError(show){ error.style.display = show ? "block" : "none"; }
+
+  // Build link to city details page
+  function cityHref(item) {
+    const name = encodeURIComponent(item.name || "Selected City");
+    const state = item.state ? encodeURIComponent(item.state) : "";
+    const country = item.country ? encodeURIComponent(item.country) : "";
+    let url = `/city/?lat=${encodeURIComponent(item.lat)}&lon=${encodeURIComponent(item.lon)}&name=${name}`;
+    if (state)   url += `&state=${state}`;
+    if (country) url += `&country=${country}`;
+    return url;
+  }
+
+  // Format city line "Name, State, Country"
+  function fmtLine(item) {
+    const parts = [item.name, item.state, item.country].filter(Boolean);
+    return parts.join(", ");
+  }
+
+  async function run() {
+    root.innerHTML = "";
+    showEmpty(false); showError(false);
+
+    try {
+      const r = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { headers: { "Accept":"application/json" } });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      const results = data?.data ?? data?.results ?? data ?? [];
+      if (!Array.isArray(results) || results.length === 0) {
+        showEmpty(true);
+        return;
+      }
+
+      // Render result cards
+      for (const it of results.slice(0, 20)) {
+        const a = document.createElement("a");
+        a.href = cityHref(it);
+        a.className = "card";
+        a.style.display = "block";
+        a.style.padding = ".75rem 1rem";
+        a.style.borderRadius = "10px";
+        a.style.background = "rgba(255,255,255,0.06)";
+        a.style.textDecoration = "none";
+        a.style.color = "inherit";
+        a.textContent = fmtLine(it);
+        root.appendChild(a);
+      }
+    } catch (e) {
+      console.error("[search] error:", e);
+      showError(true);
+    }
+  }
+
+  run();
+})();
+</script>
+{% endblock %}

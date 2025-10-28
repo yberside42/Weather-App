@@ -1,0 +1,128 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <!-- city.js script -->
+  <script src="{% static 'js/city.js' %}" defer></script>
+  <meta charset="utf-8">
+  <title>Weather App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  
+  <!-- Styles -->
+  <style>
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Times New Roman', Times, serif, sans-serif;
+      color: #f1f5f9;
+      background: url("{% static 'img/fondo.png' %}") no-repeat center center fixed;
+      background-size: cover;
+      position: relative;
+      text-align: center;
+    }
+
+    body::before{
+      content:"";
+      position: fixed; inset: 0;
+      background: rgba(0, 20, 40, 0.6);
+      backdrop-filter: blur(4px);
+      z-index: -1; 
+    }
+
+    .container{max-width:1040px;margin:0 auto;padding:1rem;}
+    .footcontainer{max-width:1040px;margin:0 auto;padding:1rem;text-align: left;}
+
+    header{
+      background:#1e293b; 
+      border-bottom:1px solid rgba(255,255,255,.08);
+      position: sticky; top:0; z-index: 10;
+    }
+
+    .nav{display:flex;gap:1rem;align-items:center;height:64px}
+    .brand{font-weight:700;color:#93c5fd;text-decoration:none;font-size:1.1rem}
+    .nav a{color:#cbd5e1;text-decoration:none}
+    .nav a:hover{color:#60a5fa}
+    .spacer{flex:1}
+
+    .search{display:flex;gap:.5rem;align-items:center;margin-left:auto}
+    .search input[type="search"]{
+      padding:.6rem .9rem;border:none;outline:none;border-radius:999px;
+      background:rgba(255, 255, 255, 0.15);color:#f1f5f9; width:min(52vw,520px);
+    }
+
+    .search input::placeholder{color:#94a3b8}
+    .search button{
+      padding:.6rem 1rem;border:none;border-radius:999px;cursor:pointer;
+      background:#004bb5;color:#f1f5f9;font-weight:600;
+    }
+
+    .search button:hover{background:#1e40af}
+
+    .card{
+      background: rgba(30,41,59,0.7);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px; padding:1rem; margin-bottom:1rem;
+      box-shadow:0 4px 8px rgba(0,0,0,.3);
+    }
+
+    .sr-only {
+      position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+      overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0;
+    }
+  </style>
+
+
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+<header>
+  <div class="container nav">
+    <a class="brand" href="/">Weather App</a>
+    <div class="spacer"></div>
+
+    <!-- Search Form -->
+    <form id="search-form" action="/" method="get" class="search" role="search" aria-label="Search for a city">
+      <input id="search-input" type="search" name="q" placeholder="Search city…" autocomplete="off" aria-label="Search city">
+      <button type="submit" aria-label="Search">Search</button>
+    </form>
+    
+    <!-- Saved Cities Link -->
+    <a href="/saved/" style="margin-left:1rem;" aria-label="Saved cities">Saved Cities</a>
+  </div>
+</header>
+
+<!-- Main page -->
+<main class="container">
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="foot<container" style="border-top:1px solid rgba(255,255,255,.08);color:#94a3b8;padding:1rem 0;">
+  <small>© yberside</small>
+</footer>
+
+<!-- SCRIPTS!!!-->
+<script src="{% static 'app.js' %}"></script>
+
+<script>
+(function(){
+  const form  = document.getElementById("search-form");
+  const input = document.getElementById("search-input");
+  if (!form || !input) return;
+
+  // Redirection to "/?q=...". This always happens when submitting the search form.
+  form.addEventListener("submit", function(ev){
+    ev.preventDefault();
+    const q = (input.value || "").trim();
+    if (!q) { input.focus(); return; }
+    const url = new URL("/", window.location.origin);
+    url.searchParams.set("q", q);
+    window.location.href = url.toString();
+  });
+
+  // Keeps the input value if there is something in ?q=
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("q")) input.value = params.get("q");
+})();
+</script>
+</body>
+</html>

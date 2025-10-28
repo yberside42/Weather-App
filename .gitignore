@@ -1,4 +1,14 @@
+# Databases
 db.sqlite3
-venv
-__psycache__
-.env 
+
+# Environments
+venv/
+.env
+
+# Bytecode / cache
+__pycache__/
+*.py[cod]
+
+# System
+.DS_Store
+Thumbs.db

@@ -1,4 +1,4 @@
-# Weather App
+# Weather App - Web App for realtime forecast
 
 A simple web app built with Python and Django that allows users to check the weather in any city around the world using the API: OpenWeather. The app displays the current weather and a one-week forecast powered by the API: One Call.
 Users can save their favorite cities using LocalStorage so no login is required to use the web. 

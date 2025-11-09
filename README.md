@@ -3,6 +3,8 @@
 A simple web app built with Python and Django that allows users to check the weather in any city around the world using the API: OpenWeather. The app displays the current weather and a one-week forecast powered by the API: One Call.
 Users can save their favorite cities using LocalStorage so no login is required to use the web. 
 
+![view](Screenshots/WA1.png)
+
 ---
 
 ## Technologies & Requirements
@@ -60,6 +62,10 @@ python manage.py runserver
 - Coordinates are passed to One Call API to fetch the 7-day forecast.
 - User enter in the desired city and the data is normalized using the templates. 
 - There is an optional button that allows the user to save the city as a favorite.
+
+![view](Screenshots/WA2.png)
+![view](Screenshots/WA3.png)
+![view](Screenshots/WA4.png)
 
 ---
 
